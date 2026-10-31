@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#9bd5f2">
+<title>JohtoKanto 3D — Prototype Android</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#9bd5f2;font-family:system-ui,-apple-system,Segoe UI,sans-serif;touch-action:none}
+#game{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;inset:0;pointer-events:none;color:#183047;text-shadow:0 1px 2px #fff8}
+.panel{background:#fffffff0;border:2px solid #fff;border-radius:15px;box-shadow:0 4px 16px #21435b30;padding:9px 12px}
+#top{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+#brand{font-weight:900;font-size:14px;letter-spacing:.3px}#objective{font-size:11px;margin-top:3px}
+#status{font-size:11px;font-weight:700;text-align:right}
+#message{position:absolute;left:50%;top:22%;transform:translateX(-50%);max-width:min(88vw,420px);text-align:center;font-weight:700;display:none}
+#message.show{display:block}
+#controls{position:absolute;bottom:18px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:flex-end}
+#stick{width:126px;height:126px;border-radius:50%;background:#ffffff70;border:2px solid #ffffffcc;position:relative;pointer-events:auto;touch-action:none}
+#nub{position:absolute;width:48px;height:48px;border-radius:50%;background:#ffffffdf;border:2px solid #6a91a4;left:37px;top:37px;box-shadow:0 2px 8px #18304740}
+#buttons{display:flex;flex-direction:column;gap:9px;align-items:flex-end;pointer-events:auto}
+button{font:700 13px system-ui;border:2px solid #fff;border-radius:14px;padding:12px 15px;background:#fff;color:#183047;box-shadow:0 3px 10px #18304730;touch-action: manipulation}
+button:active{transform:scale(.96);background:#dff3ff}
+#action{background:#ffe58a;min-width:90px}#run{min-width:90px}
+#startScreen,#battleScreen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#15334dcc;padding:18px;z-index:5}
+.card{width:min(92vw,430px);background:#fff;border-radius:22px;padding:20px;text-align:center;box-shadow:0 12px 35px #0005}
+h1{font-size:23px;margin:0 0 6px;color:#193d57}p{font-size:13px;line-height:1.45;color:#40596b}
+.choices{display:flex;gap:8px;margin:14px 0}.choices button{flex:1;padding:11px 5px}
+.small{font-size:11px;color:#60798b}
+#battleScreen{display:none}#battleScreen .card{text-align:left}
+#battleTitle{font-size:20px;font-weight:900}
+#battleLog{background:#eff7fa;border-radius:12px;padding:12px;min-height:55px;font-size:13px;margin:12px 0}
+.battleBtns{display:flex;gap:8px}.battleBtns button{flex:1}
+.hidden{display:none!important}
+@media(min-width:800px){#controls{max-width:850px;margin:auto;left:0;right:0}#stick{width:145px;height:145px}#nub{left:45px;top:45px}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">
+ <div id="top">
+  <div class="panel"><div id="brand">JOHTO • KANTO 3D</div><div id="objective">Explore Bourg Geon · Trouve le professeur</div></div>
+  <div class="panel" id="status">Équipe : <span id="team">Aucune</span><br>Zone : Bourg Geon<br><span id="padStatus">Commandes tactiles</span></div>
+ </div>
+ <div id="message" class="panel"></div>
+ <div id="controls">
+  <div id="stick"><div id="nub"></div></div>
+  <div id="buttons"><button id="action">INTERAGIR</button><button id="run">COURIR : NON</button><button id="saveBtn">SAUVEGARDER</button></div>
+ </div>
+</div>
+
+<div id="startScreen">
+ <div class="card">
+  <h1>Johto & Kanto 3D</h1>
+  <p id="menuText">Choisis une partie ou commence une nouvelle aventure.</p>
+  <div id="mainMenu">
+   <button id="continueBtn" class="hidden">CONTINUER</button>
+   <button id="newBtn">NOUVELLE PARTIE</button>
+  </div>
+  <div id="starterMenu" class="hidden">
+   <p>Choisis ton compagnon de départ :</p>
+   <div class="choices">
+    <button data-starter="Flambelin">🔥<br>Flambelin</button>
+    <button data-starter="Feuillou">🌿<br>Feuillou</button>
+    <button data-starter="Aquabulle">💧<br>Aquabulle</button>
+   </div>
+  </div>
+  <p class="small">Sauvegarde locale sur cet appareil. Les manettes Bluetooth compatibles sont détectées automatiquement.</p>
+ </div>
+</div>
+
+<div id="battleScreen">
+ <div class="card">
+  <div id="battleTitle">Une créature sauvage apparaît !</div>
+  <div id="battleLog">Une créature sauvage te barre la route.</div>
+  <div class="battleBtns"><button id="attack">ATTAQUER</button><button id="capture">CAPTURER</button><button id="flee">FUIR</button></div>
+ </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+const mount=document.getElementById('game');
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x9bd5f2);
+scene.fog=new THREE.Fog(0x9bd5f2,34,95);
+const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.1,180);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+mount.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xdff5ff,0x65834b,2.0));
+const sun=new THREE.DirectionalLight(0xfff1d2,2.1);sun.position.set(-18,28,14);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+
+const mat=(c,r=.9)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
+const grassMat=mat(0x69ae58), pathMat=mat(0xd9c18d), wood=mat(0x9c603c), roof=mat(0x9c4c42), cream=mat(0xffe8bd), leaf=mat(0x347b45), trunk=mat(0x765039);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(150,150),grassMat);ground.rotation.x=-Math.PI/2;ground.position.y=-.08;ground.receiveShadow=true;scene.add(ground);
+function box(w,h,d,m,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;scene.add(o);return o}
+function tree(x,z,s=1){box(.42*s,2*s,.42*s,trunk,x,1*s,z);const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(1.05*s,1),leaf);crown.position.set(x,2.45*s,z);crown.castShadow=true;scene.add(crown)}
+// village paths
+const path=new THREE.Mesh(new THREE.PlaneGeometry(9,90),pathMat);path.rotation.x=-Math.PI/2;path.position.set(0,.005,0);scene.add(path);
+const cross=new THREE.Mesh(new THREE.PlaneGeometry(52,7),pathMat);cross.rotation.x=-Math.PI/2;cross.position.set(0,.008,-10);scene.add(cross);
+// houses
+function house(x,z,scale=1,roofColor=0x9c4c42){
+ box(5*scale,3.2*scale,4*scale,cream,x,1.6*scale,z);
+ const r=new THREE.Mesh(new THREE.ConeGeometry(3.8*scale,2.3*scale,4),mat(roofColor));r.rotation.y=Math.PI/4;r.position.set(x,4.2*scale,z);r.castShadow=true;scene.add(r);
+ box(.9*scale,1.7*scale,.12,mat(0x70442d),x, .85*scale,z-2.06*scale);
+ box(1.1*scale,.9*scale,.1,mat(0x8cc9e7),x-1.4*scale,2*scale,z-2.08*scale);
+}
+house(-10,-10,1,0xa54c43);house(11,-18,1.1,0x477f9c);house(-12,13,.9,0x9c8042);
+// lab
+box(9,4.2,7,mat(0xe7e7d8),14,2.1,4);box(9.5,1,7.5,mat(0x537f9d),14,4.55,4);
+box(1.5,2.1,.15,mat(0x426c82),14,.98,.42);
+const sign=box(3,.65,.18,mat(0xf5e6a4),14,5.25,.35);
+function makeTreeLine(){for(let i=0;i<38;i++){const x=(Math.random()-.5)*76,z=(Math.random()-.5)*76;if(Math.abs(x)<17&&Math.abs(z)<24)continue;tree(x,z,.7+Math.random()*.65)}}
+makeTreeLine();
+// flowers / tall grass patches
+const tallGrass=[];
+function grassPatch(cx,cz){for(let i=0;i<26;i++){const x=cx+(Math.random()-.5)*7,z=cz+(Math.random()-.5)*6;const g=new THREE.Group();for(let j=0;j<3;j++){const blade=new THREE.Mesh(new THREE.ConeGeometry(.13,.85,4),mat(j%2?0x3d9948:0x55b85b));blade.position.set((j-1)*.17,.42,0);blade.rotation.z=(j-1)*-.18;g.add(blade)}g.position.set(x,0,z);scene.add(g);tallGrass.push(g)}}
+grassPatch(-14,27);grassPatch(15,26);grassPatch(-25,-4);
+// player
+const player=new THREE.Group();scene.add(player);
+const body=new THREE.Mesh(new THREE.CapsuleGeometry(.43,.8,4,8),mat(0x397fbd));body.position.y=1.0;body.castShadow=true;player.add(body);
+const head=new THREE.Mesh(new THREE.SphereGeometry(.36,12,10),mat(0xf0c49b));head.position.y=1.75;head.castShadow=true;player.add(head);
+const hat=new THREE.Mesh(new THREE.CylinderGeometry(.43,.43,.12,12),mat(0xd94d42));hat.position.y=2.03;player.add(hat);
+const companion=new THREE.Group();scene.add(companion);companion.visible=false;
+function makeCreature(name,color){const g=new THREE.Group();const core=new THREE.Mesh(new THREE.SphereGeometry(.52,16,12),mat(color));core.position.y=.55;core.castShadow=true;g.add(core);const earMat=mat(color);for(let s of [-1,1]){const ear=new THREE.Mesh(new THREE.ConeGeometry(.17,.45,6),earMat);ear.position.set(s*.32,1.02,0);ear.rotation.z=s*-.3;g.add(ear)}const eyeMat=mat(0x172b3a);for(let s of [-1,1]){const eye=new THREE.Mesh(new THREE.SphereGeometry(.055,8,8),eyeMat);eye.position.set(s*.18,.68,.45);g.add(eye)}return g}
+let starter='';let run=false;let encounterCooldown=0;let battle=false;let wildHP=3;let playerHP=5;
+const SAVE_KEY='johto_kanto_3d_save_v1';
+const creatureColors={Flambelin:0xe77b42,Feuillou:0x68ad58,Aquabulle:0x5aabd9};
+function setStarter(n){starter=n;const c=makeCreature(n,creatureColors[n]);companion.clear();companion.add(c);companion.visible=true;document.getElementById('team').textContent=n;document.getElementById('startScreen').classList.add('hidden');say(n+' rejoint ton équipe ! Va rencontrer le professeur au laboratoire bleu.');saveGame(false)}
+function saveGame(show=true){
+ if(!starter){if(show)say('Choisis d’abord un compagnon pour pouvoir sauvegarder.');return}
+ const data={version:1,starter,player:{x:player.position.x,y:player.position.y,z:player.position.z,rotation:player.rotation.y},run,savedAt:new Date().toISOString()};
+ try{localStorage.setItem(SAVE_KEY,JSON.stringify(data));if(show)say('Partie sauvegardée sur cet appareil !')}catch(e){if(show)say('Sauvegarde indisponible dans ce navigateur.')}
+}
+function loadGame(){
+ try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return false;const d=JSON.parse(raw);if(!d||!d.starter)return false;setStarter(d.starter);if(d.player){player.position.set(d.player.x||0,d.player.y||0,d.player.z||0);player.rotation.y=d.player.rotation||0;}run=!!d.run;document.getElementById('run').textContent='COURIR : '+(run?'OUI':'NON');return true}catch(e){return false}
+}
+const mainMenu=document.getElementById('mainMenu'),starterMenu=document.getElementById('starterMenu');
+const continueBtn=document.getElementById('continueBtn');
+try{if(localStorage.getItem(SAVE_KEY))continueBtn.classList.remove('hidden')}catch(e){}
+document.getElementById('newBtn').onclick=()=>{try{localStorage.removeItem(SAVE_KEY)}catch(e){};player.position.set(0,0,18);starter='';companion.visible=false;document.getElementById('team').textContent='Aucune';mainMenu.classList.add('hidden');starterMenu.classList.remove('hidden');document.getElementById('menuText').textContent='Nouvelle aventure';};
+continueBtn.onclick=()=>{if(loadGame()){document.getElementById('startScreen').classList.add('hidden');say('Partie chargée. Bonne aventure !')}};
+document.querySelectorAll('[data-starter]').forEach(b=>b.addEventListener('click',()=>setStarter(b.dataset.starter)));
+document.getElementById('saveBtn').onclick=()=>saveGame(true);
+const professor=new THREE.Group();scene.add(professor);const profBody=new THREE.Mesh(new THREE.CapsuleGeometry(.42,.8,4,8),mat(0xe8e8df));profBody.position.y=1;professor.add(profBody);const profHead=new THREE.Mesh(new THREE.SphereGeometry(.34,12,10),mat(0xe5b996));profHead.position.y=1.75;professor.add(profHead);professor.position.set(14,0,-1);
+function say(t){const e=document.getElementById('message');e.textContent=t;e.classList.add('show');clearTimeout(window.msgTimer);window.msgTimer=setTimeout(()=>e.classList.remove('show'),3500)}
+// joystick
+const stick=document.getElementById('stick'),nub=document.getElementById('nub');let joy={x:0,y:0},stickId=null;
+let activeGamepadIndex=null;
+function refreshGamepad(){
+ const pads= navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(p=>p&&p.connected) : [];
+ const connected=pads.length>0;
+ document.getElementById('controls').style.display=connected?'none':'flex';
+ document.getElementById('padStatus').textContent=connected?'Manette connectée':'Commandes tactiles';
+ activeGamepadIndex=connected?pads[0].index:null;
+}
+window.addEventListener('gamepadconnected',refreshGamepad);
+window.addEventListener('gamepaddisconnected',refreshGamepad);
+refreshGamepad();
+function setJoy(e){const r=stick.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let dx=e.clientX-cx,dy=e.clientY-cy;const max=39,l=Math.hypot(dx,dy);if(l>max){dx=dx/l*max;dy=dy/l*max}joy.x=dx/max;joy.y=dy/max;nub.style.transform=`translate(${dx}px,${dy}px)`}
+stick.addEventListener('pointerdown',e=>{stickId=e.pointerId;stick.setPointerCapture(stickId);setJoy(e)});
+stick.addEventListener('pointermove',e=>{if(e.pointerId===stickId)setJoy(e)});
+function resetJoy(){stickId=null;joy={x:0,y:0};nub.style.transform='translate(0,0)'}
+stick.addEventListener('pointerup',resetJoy);stick.addEventListener('pointercancel',resetJoy);
+let lookId=null,lastX=0,lastY=0,camYaw=0.2,camPitch=.28;
+renderer.domElement.addEventListener('pointerdown',e=>{if(e.clientX<innerWidth*.38&&e.clientY>innerHeight*.55)return;lookId=e.pointerId;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(lookId)});
+renderer.domElement.addEventListener('pointermove',e=>{if(e.pointerId!==lookId)return;camYaw-=(e.clientX-lastX)*.006;camPitch=THREE.MathUtils.clamp(camPitch+(e.clientY-lastY)*.003,-.05,.65);lastX=e.clientX;lastY=e.clientY});
+renderer.domElement.addEventListener('pointerup',()=>lookId=null);
+document.getElementById('run').onclick=()=>{run=!run;document.getElementById('run').textContent='COURIR : '+(run?'OUI':'NON')};
+function openBattle(){if(battle)return;battle=true;wildHP=3;document.getElementById('battleScreen').style.display='flex';document.getElementById('battleLog').textContent='Un petit être sauvage bondit hors des herbes !';document.getElementById('battleTitle').textContent='Rencontre sauvage';}
+function closeBattle(msg){document.getElementById('battleScreen').style.display='none';battle=false;say(msg)}
+document.getElementById('attack').onclick=()=>{wildHP--;if(wildHP<=0){closeBattle('Victoire ! Tu as gagné de l’expérience.');}else document.getElementById('battleLog').textContent='Ton compagnon attaque ! La créature sauvage faiblit ('+wildHP+'/3).'};
+document.getElementById('capture').onclick=()=>{if(Math.random()>.38||wildHP<=1)closeBattle('Capture réussie ! (prototype)');else document.getElementById('battleLog').textContent='La créature s’échappe de la capsule ! Affaiblis-la davantage.'};
+document.getElementById('flee').onclick=()=>closeBattle('Tu as fui le combat.');
+let battlePadLatch=false;
+function pollBattlePad(){if(!battle)return;const pads=navigator.getGamepads?navigator.getGamepads():[];const gp=activeGamepadIndex!==null?pads[activeGamepadIndex]:null;if(gp&&gp.connected){const pressed=gp.buttons.some(b=>b&&b.pressed);if(pressed&&!battlePadLatch){if(gp.buttons[0]?.pressed)document.getElementById('attack').click();else if(gp.buttons[1]?.pressed)document.getElementById('capture').click();else if(gp.buttons[2]?.pressed)document.getElementById('flee').click();}battlePadLatch=pressed}else battlePadLatch=false;}
+document.getElementById('action').onclick=()=>{if(battle)return;const d=player.position.distanceTo(professor.position);if(d<4.2){say('Professeur : Bienvenue ! Johto est vaste. Explore les alentours et découvre les herbes hautes.');return}if(player.position.distanceTo(new THREE.Vector3(14,0,4))<6){say('Le laboratoire du professeur. Une grande aventure commence ici !');return}say('Explore Bourg Geon. Les herbes hautes cachent parfois des créatures sauvages.');};
+const clock=new THREE.Clock();const camTarget=new THREE.Vector3();
+function update(dt){if(!battle){let inputX=joy.x,inputY=joy.y;let padAction=false,padRun=false;
+if(navigator.getGamepads){const pads=navigator.getGamepads();const gp=activeGamepadIndex!==null?pads[activeGamepadIndex]:null;if(gp&&gp.connected){inputX=Math.abs(gp.axes[0]||0)>.16?gp.axes[0]:0;inputY=Math.abs(gp.axes[1]||0)>.16?gp.axes[1]:0;padAction=!!(gp.buttons[0]&&gp.buttons[0].pressed);padRun=!!(gp.buttons[1]&&gp.buttons[1].pressed);if(padAction&&!window._lastPadAction){document.getElementById('action').click()}window._lastPadAction=padAction;run=padRun;}}
+const forward=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw));const right=new THREE.Vector3(Math.cos(camYaw),0,-Math.sin(camYaw));let move=forward.clone().multiplyScalar(-inputY).add(right.multiplyScalar(inputX));if(move.lengthSq()>.01){move.normalize();player.position.addScaledVector(move,dt*(run?8:4.5));player.rotation.y=Math.atan2(move.x,move.z)}player.position.x=THREE.MathUtils.clamp(player.position.x,-39,39);player.position.z=THREE.MathUtils.clamp(player.position.z,-39,39);if(companion.visible){companion.position.copy(player.position).add(new THREE.Vector3(-1.1,0,1));companion.position.y=.05+Math.sin(clock.elapsedTime*4)*.07;companion.rotation.y=player.rotation.y}
+if(encounterCooldown>0)encounterCooldown-=dt;
+if(encounterCooldown<=0&&tallGrass.some(g=>g.position.distanceTo(player.position)<1.2)&&Math.random()<dt*.45){encounterCooldown=12;openBattle();}
+}
+if(navigator.getGamepads&&activeGamepadIndex!==null){const gp=navigator.getGamepads()[activeGamepadIndex];if(gp&&gp.connected){const rx=gp.axes[2]||0,ry=gp.axes[3]||0;if(Math.abs(rx)>.12)camYaw-=rx*dt*2.4;if(Math.abs(ry)>.12)camPitch=THREE.MathUtils.clamp(camPitch+ry*dt*.9,-.05,.65);}}
+camTarget.set(player.position.x+Math.sin(camYaw)*10,player.position.y+7+camPitch*5,player.position.z+Math.cos(camYaw)*10);
+camera.position.lerp(camTarget,1-Math.pow(.001,dt));camera.lookAt(player.position.x,player.position.y+1,player.position.z);
+}
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04);update(dt);pollBattlePad();renderer.render(scene,camera)}loop();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.6))});
+</script>
+</body></html>

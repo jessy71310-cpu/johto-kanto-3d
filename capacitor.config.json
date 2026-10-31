@@ -1,0 +1,6 @@
+{
+  "appId": "com.johto.kanto3d",
+  "appName": "Johto Kanto 3D",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
